@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from tabm import TabM
-from rtdl_num_embeddings import PiecewiseLinearEmbeddings
+from rtdl_num_embeddings import PiecewiseLinearEmbeddings, compute_bins
 
 # src/model_factory.py
 
@@ -11,10 +11,17 @@ def create_tabm_model(X_train_sample, device='cuda'):
     """
     n_num_features = X_train_sample.shape[1]
     
-    # 计算分段线性嵌入的统计信息 (这是 PLE 的核心步骤)
-    num_embeddings = PiecewiseLinearEmbeddings.compute_stats(
-        X_train_sample.cpu(), 
-        n_bins=48
+    # 计算分段线性嵌入的分箱边界
+    # 恢复固定分箱数 48，外部 run_rolling.py 会保证样本量充足
+    bins = compute_bins(X_train_sample.cpu(), n_bins=48)
+    
+    # fix: 必须指定 d_embedding, activation 和 version
+    # TabM 论文推荐使用 version='B'，且通常嵌入层本身不加 Activation (由后续 MLP 处理)
+    num_embeddings = PiecewiseLinearEmbeddings(
+        bins=bins, 
+        d_embedding=16, 
+        activation=False, 
+        version='B'
     )
     
     model = TabM.make(
